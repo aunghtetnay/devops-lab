@@ -1,0 +1,42 @@
+image: docker:20.10.16
+
+services:
+  - docker:dind
+
+stages:
+  - build
+  - deploy
+before_script:
+  - 'which ssh-agent || ( apk add --update openssh git -q )'
+  - eval $(ssh-agent -s)
+  - echo "$ID_RSA" | tr -d '\r' | ssh-add -> /dev/null
+  - mkdir -p ~/.ssh
+  - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'  #disable host key checking.
+
+publish:
+  stage: build
+  services:
+    - docker:20.10.16-dind
+  script:
+    - docker login  -u 	$DOCKER_HUB_USER -p $DOCKER_HUB_PASS
+    - docker build -t ahnay2019/nodejs .
+    - docker push ahnay2019/nodejs
+  tags:
+    - deployment
+  
+deploy:
+  image: alpine:latest
+  stage: deploy
+  script:
+    - ssh $APP_USER@$SERVER_IP -t "bash /home/ec2-user/auto.sh"
+
+    - echo "Pem file found"
+    - echo "Successfully Login"
+    - ssh $APP_USER@$SERVER_IP -t  " bash /home/ec2-user/auto.sh  -e "cat /home/ec2-user/aung.txt" "
+  tags:
+    - deployment
+
+  only:
+    - main
+
+
